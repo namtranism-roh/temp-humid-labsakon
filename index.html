@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Temp & Humid - รพ.สกลนคร</title>
+
+    <meta name="theme-color" content="#6B705C">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LabTemp">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2103/2103633.png">
+    
+    <link rel="manifest" href='data:application/manifest+json,{"name":"Lab Temp Monitor Sakon","short_name":"LabTemp","start_url":".","display":"standalone","background_color":"#FFE8D6","theme_color":"#6B705C","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/2103/2103633.png","sizes":"512x512","type":"image/png"}]}'>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --earth-primary: #6B705C;
+            --earth-secondary: #A5A58D;
+            --earth-bg: #FFE8D6;
+            --earth-card: #F0EAD6;
+            --text-main: #333d29;
+            --alert-red: #ae2012;
+            --success-green: #386641;
+        }
+        [data-theme="dark"] {
+            --earth-bg: #2b2d42;
+            --earth-card: #3d405b;
+            --text-main: #f4f1de;
+            --earth-primary: #81b29a;
+        }
+        body { font-family: 'Sarabun', sans-serif; background-color: var(--earth-bg); color: var(--text-main); transition: 0.3s; padding-bottom: 30px; }
+        .nav-header { background-color: var(--earth-primary); color: white; padding: 1rem; margin-bottom: 20px; }
+        .card { background-color: var(--earth-card); border: none; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .kpi-card { text-align: center; padding: 15px; border-radius: 10px; }
+        .table-container { background: white; border-radius: 10px; padding: 15px; color: #333; }
+        .invalid-val { color: var(--alert-red); font-weight: bold; background-color: #ffd6d6; padding: 2px 5px; border-radius: 4px; }
+        .btn-earth { background: var(--earth-primary); color: white; border: none; }
+        .btn-earth:hover { background: var(--earth-secondary); color: white; }
+        th { font-size: 0.8rem; text-align: center; background-color: #f8f9fa !important; vertical-align: middle; }
+        td { text-align: center; vertical-align: middle; font-size: 0.9rem; }
+        @media (min-width: 992px) { .sticky-form { position: sticky; top: 20px; } }
+    </style>
+</head>
+<body data-theme="light">
+
+<nav class="nav-header shadow-sm d-flex justify-content-between align-items-center">
+    <h6 class="m-0">🏥 ระบบบันทึกอุณหภูมิและความชื้น - Molecular รพ.สกลนคร</h6>
+    <button onclick="toggleTheme()" class="btn btn-sm btn-outline-light border-0">🌙</button>
+</nav>
+
+<div class="container-fluid">
+    <div class="row g-2 mb-4">
+        <div class="col-6 col-md-3"><div class="card kpi-card"><h6>ทั้งหมด</h6><h3 id="statTotal">0</h3></div></div>
+        <div class="col-6 col-md-3"><div class="card kpi-card text-success"><h6>ปกติ (วันนี้)</h6><h3 id="statNormal">0</h3></div></div>
+        <div class="col-6 col-md-3"><div class="card kpi-card text-danger"><h6>ผิดปกติ (วันนี้)</h6><h3 id="statAlert">0</h3></div></div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card">
+                <div class="btn-group-vertical w-100">
+                    <button onclick="exportData('csv')" class="btn btn-sm btn-dark">Export CSV</button>
+                    <button onclick="clearAll()" class="btn btn-sm btn-outline-danger">ล้างฐานข้อมูล</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-3 col-lg-4">
+            <div class="card p-3 sticky-form mb-4">
+                <h6 class="mb-3 border-bottom pb-2 fw-bold">➕ ลงบันทึกตรวจวัด</h6>
+                <form id="logForm">
+                    <div class="mb-2">
+                        <label class="small">ผู้ลงบันทึก</label>
+                        <input type="text" id="staff" class="form-control form-control-sm" placeholder="ระบุชื่อ" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col"><label class="small">วันที่</label><input type="date" id="date" class="form-control form-control-sm" required></div>
+                        <div class="col"><label class="small">รอบตรวจ</label><select id="shift" class="form-select form-select-sm"><option value="08:00">08:00 น.</option><option value="16:00">16:00 น.</option></select></div>
+                    </div>
+                    
+                    <div class="row g-2">
+                        <div class="col-6 mb-2"><label class="small fw-bold">ตู้เย็น1 เก็บน้ำตัวอย่าง (2-8°)</label><input type="number" step="0.1" id="f1" class="form-control form-control-sm" required></div>
+                        <div class="col-6 mb-2"><label class="small fw-bold">ตู้เย็น2 เก็บน้ำยา (2-8°)</label><input type="number" step="0.1" id="f2" class="form-control form-control-sm" required></div>
+                        <div class="col-6 mb-2"><label class="small fw-bold">Freezer1 เก็บน้ำยา (-15~-25)</label><input type="number" step="0.1" id="z1" class="form-control form-control-sm" required></div>
+                        <div class="col-6 mb-2"><label class="small fw-bold">Freezer2 เก็บตัวอย่าง (-15~-25)</label><input type="number" step="0.1" id="z2" class="form-control form-control-sm" required></div>
+                        <div class="col-6 mb-2"><label class="small fw-bold">Tempห้องExtract (23-27°)</label><input type="number" step="0.1" id="rt" class="form-control form-control-sm" required></div>
+                        <div class="col-6 mb-2"><label class="small fw-bold">Humidห้องExtract (45-50%)</label><input type="number" step="0.1" id="rh" class="form-control form-control-sm" required></div>
+                    </div>
+                    <button type="submit" class="btn btn-earth w-100 mt-3 py-2 fw-bold">💾 บันทึกและแสดงผลทันที</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-xl-9 col-lg-8">
+            <div class="card p-3">
+                <h6 class="mb-3 fw-bold">📋 ประวัติการบันทึก</h6>
+                <div class="table-container shadow-sm border p-1">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover m-0">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2">วันที่ (รอบ)</th>
+                                    <th colspan="2">ตู้เย็น (2-8°)</th>
+                                    <th colspan="2">Freezer (-15~-25°)</th>
+                                    <th colspan="2">ห้อง Extract</th>
+                                    <th rowspan="2">ลบ</th>
+                                </tr>
+                                <tr>
+                                    <th>1</th><th>2</th><th>1</th><th>2</th><th>T</th><th>H</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ส่วน PWA Service Worker สำหรับทำงาน Offline
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZSA9PiBzZWxmLnNraXBXYWl0aW5nKCkpOwpzZWxmLmFkZEV2ZW50TGlzdGVuZXIoJ2FjdGl2YXRlJywgZSA9PiBlLndhaXRVbnRpbChzZWxmLmNsaWVudHMuY2xhaW0oKSkpOwpzZWxmLmFkZEV2ZW50TGlzdGVuZXIoJ2ZldGNoJywgZSA9PiBlLnJlc3BvbmRXaXRoKGZldGNoKGUucmVxdWVzdCkuY2F0Y2goKCkgPT4gY2FjaGVzLm1hdGNoKGUucmVxdWVzdCkpKSk7')
+            .catch(err => console.log("SW Register Failed", err));
+        });
+    }
+
+    const LIMITS = { f: {min:2, max:8}, z: {min:-25, max:-15}, rt: {min:23, max:27}, rh: {min:45, max:50} };
+    let logs = JSON.parse(localStorage.getItem('lab_logs_sakon_v3')) || [];
+
+    window.onload = function() {
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        if(localStorage.getItem('theme_mode') === 'dark') document.body.setAttribute('data-theme', 'dark');
+        updateUI();
+    };
+
+    document.getElementById('logForm').onsubmit = function(e) {
+        e.preventDefault();
+        const data = {
+            id: Date.now(),
+            date: document.getElementById('date').value,
+            shift: document.getElementById('shift').value,
+            staff: document.getElementById('staff').value,
+            f1: parseFloat(document.getElementById('f1').value), f2: parseFloat(document.getElementById('f2').value),
+            z1: parseFloat(document.getElementById('z1').value), z2: parseFloat(document.getElementById('z2').value),
+            rt: parseFloat(document.getElementById('rt').value), rh: parseFloat(document.getElementById('rh').value)
+        };
+        logs.unshift(data);
+        localStorage.setItem('lab_logs_sakon_v3', JSON.stringify(logs));
+        updateUI();
+        this.reset();
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    };
+
+    function updateUI() {
+        const tbody = document.getElementById('dataTableBody');
+        tbody.innerHTML = '';
+        let todayNormal = 0, todayAlert = 0;
+        const nowStr = new Date().toISOString().split('T')[0];
+
+        logs.forEach(item => {
+            const isF1Err = (item.f1 < LIMITS.f.min || item.f1 > LIMITS.f.max);
+            const isF2Err = (item.f2 < LIMITS.f.min || item.f2 > LIMITS.f.max);
+            const isZ1Err = (item.z1 < LIMITS.z.min || item.z1 > LIMITS.z.max);
+            const isZ2Err = (item.z2 < LIMITS.z.min || item.z2 > LIMITS.z.max);
+            const isRtErr = (item.rt < LIMITS.rt.min || item.rt > LIMITS.rt.max);
+            const isRhErr = (item.rh < LIMITS.rh.min || item.rh > LIMITS.rh.max);
+            const hasError = (isF1Err || isF2Err || isZ1Err || isZ2Err || isRtErr || isRhErr);
+
+            if(item.date === nowStr) { if(hasError) todayAlert++; else todayNormal++; }
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="small">${item.date}<br>(${item.shift})</td>
+                    <td><span class="${isF1Err ? 'invalid-val' : ''}">${item.f1}</span></td>
+                    <td><span class="${isF2Err ? 'invalid-val' : ''}">${item.f2}</span></td>
+                    <td><span class="${isZ1Err ? 'invalid-val' : ''}">${item.z1}</span></td>
+                    <td><span class="${isZ2Err ? 'invalid-val' : ''}">${item.z2}</span></td>
+                    <td><span class="${isRtErr ? 'invalid-val' : ''}">${item.rt}</span></td>
+                    <td><span class="${isRhErr ? 'invalid-val' : ''}">${item.rh}%</span></td>
+                    <td><button onclick="deleteLog(${item.id})" class="btn btn-sm btn-link text-danger p-0">✕</button></td>
+                </tr>`;
+        });
+        document.getElementById('statTotal').innerText = logs.length;
+        document.getElementById('statNormal').innerText = todayNormal;
+        document.getElementById('statAlert').innerText = todayAlert;
+    }
+
+    function deleteLog(id) { if(confirm('ลบรายการนี้?')) { logs = logs.filter(l => l.id !== id); localStorage.setItem('lab_logs_sakon_v3', JSON.stringify(logs)); updateUI(); } }
+    function clearAll() { if(confirm('ลบข้อมูลทั้งหมดถาวร?')) { logs = []; localStorage.removeItem('lab_logs_sakon_v3'); updateUI(); } }
+    function toggleTheme() { 
+        const n = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.body.setAttribute('data-theme', n);
+        localStorage.setItem('theme_mode', n);
+    }
+
+    function exportData() {
+        if(logs.length === 0) return alert('ไม่มีข้อมูล');
+        let csv = "\uFEFFวันที่,รอบ,ตู้เย็น1,ตู้เย็น2,Freezer1,Freezer2,Tempห้อง,Humidห้อง,ผู้ตรวจ\n";
+        logs.forEach(l => csv += `${l.date},${l.shift},${l.f1},${l.f2},${l.z1},${l.z2},${l.rt},${l.rh},${l.staff}\n`);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        a.download = `Lab_Report_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+    }
+</script>
+</body>
+</html>
